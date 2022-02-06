@@ -1,34 +1,49 @@
+#ifndef __KERNEL_H__
+#define __KERNEL_H__
 #define DEBUG 0
+
+typedef enum Status
+{
+   RUNNING,
+   READY,
+   BLOCKED,
+   QUIT
+};
 
 typedef struct proc_struct proc_struct;
 
-typedef struct proc_struct * proc_ptr;
+typedef struct proc_struct *proc_ptr;
 
-struct proc_struct {
-   proc_ptr       next_proc_ptr;
-   proc_ptr       child_proc_ptr;
-   proc_ptr       next_sibling_ptr;
-   char           name[MAXNAME];     /* process's name */
-   char           start_arg[MAXARG]; /* args passed to process */
-   context        state;             /* current context for process */
-   short          pid;               /* process id */
-   int            priority;
-   int (* start_func) (char *);   /* function where process begins -- launch */
-   char          *stack;
-   unsigned int   stacksize;
-   int            status;         /* READY, BLOCKED, QUIT, etc. */
+struct proc_struct
+{
+   proc_ptr next_proc_ptr;
+   proc_ptr child_proc_ptr;
+   proc_ptr parent_proc_ptr;
+   proc_ptr next_sibling_ptr;
+   char name[MAXNAME];     /* process's name */
+   char start_arg[MAXARG]; /* args passed to process */
+   context state;          /* current context for process */
+   short pid;              /* process id */
+   int priority;
+   int (*start_func)(char *); /* function where process begins -- launch */
+   char *stack;
+   unsigned int stacksize;
+   int status; /* READY, BLOCKED, QUIT, etc. */
+   int quitCode;
    /* other fields as needed... */
 };
 
-struct psr_bits {
-        unsigned int cur_mode:1;
-       unsigned int cur_int_enable:1;
-        unsigned int prev_mode:1;
-        unsigned int prev_int_enable:1;
-    unsigned int unused:28;
+struct psr_bits
+{
+   unsigned int cur_mode : 1;
+   unsigned int cur_int_enable : 1;
+   unsigned int prev_mode : 1;
+   unsigned int prev_int_enable : 1;
+   unsigned int unused : 28;
 };
 
-union psr_values {
+union psr_values
+{
    struct psr_bits bits;
    unsigned int integer_part;
 };
@@ -39,4 +54,9 @@ union psr_values {
 #define MAXPRIORITY 1
 #define SENTINELPID 1
 #define SENTINELPRIORITY LOWEST_PRIORITY
+// More...
+#define READY 0
+#define BLOCKED 1
+#define QUIT 2
 
+#endif
