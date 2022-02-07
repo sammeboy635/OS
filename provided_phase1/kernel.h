@@ -1,5 +1,6 @@
-#ifndef __KERNEL_H__
-#define __KERNEL_H__
+#pragma once
+//#ifndef KERNEL_H__
+//#define KERNEL_H__
 #define DEBUG 0
 
 typedef enum Status
@@ -8,22 +9,23 @@ typedef enum Status
    READY,
    BLOCKED,
    QUIT
-};
+} Status;
 
 typedef struct proc_struct proc_struct;
 
 typedef struct proc_struct *proc_ptr;
+// extern struct nodelist;
 
 struct proc_struct
 {
-   proc_ptr next_proc_ptr;
-   proc_ptr child_proc_ptr;
-   proc_ptr parent_proc_ptr;
-   proc_ptr next_sibling_ptr;
-   char name[MAXNAME];     /* process's name */
-   char start_arg[MAXARG]; /* args passed to process */
-   context state;          /* current context for process */
-   short pid;              /* process id */
+   proc_ptr next_proc_ptr;    // OR THIS
+   proc_ptr child_proc_ptr;   // TEACHER ask is we can make this a list.
+   proc_ptr parent_proc_ptr;  // ADDED BY ME
+   proc_ptr next_sibling_ptr; // WHY DO WE NEED THIS
+   char name[MAXNAME];        /* process's name */
+   char start_arg[MAXARG];    /* args passed to process */
+   context state;             /* current context for process */
+   short pid;                 /* process id */
    int priority;
    int (*start_func)(char *); /* function where process begins -- launch */
    char *stack;
@@ -31,6 +33,8 @@ struct proc_struct
    int status; /* READY, BLOCKED, QUIT, etc. */
    int quitCode;
    /* other fields as needed... */
+   int runningTime;
+   int zapped;
 };
 
 struct psr_bits
@@ -55,8 +59,7 @@ union psr_values
 #define SENTINELPID 1
 #define SENTINELPRIORITY LOWEST_PRIORITY
 // More...
-#define READY 0
-#define BLOCKED 1
-#define QUIT 2
+#define TRUE 1
+#define FALSE -1
 
-#endif
+//#endif

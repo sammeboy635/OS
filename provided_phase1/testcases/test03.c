@@ -14,7 +14,7 @@ int start1(char *arg)
   pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
   printf("start1(): after fork of child %d\n", pid1);
   printf("start1(): performing join\n");
-dump_processes();
+  dump_processes();
   kid_pid = join(&status);
   sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
   printf("%s", buf);

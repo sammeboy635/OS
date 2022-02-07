@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <phase1.h>
-#include "kernel.h"
+
 #include "p1.h"
 
 void p1_fork(int pid)
@@ -41,6 +41,14 @@ void push(nodelist *_list, proc_ptr _value)
     newNode->value = _value;
     push_node(_list, newNode);
 }
+proc_ptr pop(nodelist *_list)
+{
+    if (_list->head == NULL)
+    {
+        return NULL;
+    }
+    return _list->head->value;
+}
 proc_ptr pop_push_end(nodelist *_list)
 {
     node *tmp;
@@ -54,6 +62,24 @@ proc_ptr pop_push_end(nodelist *_list)
     push_node(_list, tmp);
 
     return tmp->value;
+}
+proc_ptr get_index(nodelist *_list, int _index)
+{
+    if (_list->length < _index)
+    {
+        return NULL;
+    }
+
+    int index = 0;
+    for (node *cur = _list->head; cur != NULL; cur = cur->next)
+    {
+        if (_index == index)
+        {
+            return cur->value;
+        }
+    }
+    printf("GET_INDEX: REACHED END ERROR");
+    return NULL;
 }
 void remove_value(nodelist *_list, proc_ptr _value)
 {
@@ -85,6 +111,7 @@ void remove_value(nodelist *_list, proc_ptr _value)
         }
 
         _list->length--;
+        free(cur->value);
         free(cur);
     }
 }
@@ -104,10 +131,11 @@ void free_list(nodelist *_list)
 }
 void dbg_list_print(nodelist *_list)
 {
+    const char *STATUSNAME[] = {"RUNNING", "READY", "BLOCKED", "QUIT"};
     int i = 0;
     for (node *cur = _list->head; cur != NULL; cur = cur->next)
     {
-        printf("%d) %p\n", i, cur);
+        printf("%d %10d %20s %10s\n", cur->value->pid, cur->value->priority, STATUSNAME[cur->value->status], cur->value->name); //
         i++;
     }
 }
@@ -120,11 +148,13 @@ nodelist *init_nodelist()
     list->length = 0;
     list->fn_push = push;
     list->fn_push_node = push_node;
+    list->fn_pop = pop;
     list->fn_pop_push_end = pop_push_end;
-    list->fn_clear_nodes = clear_nodes;
+    list->fn_clear_nodes_free_values = clear_nodes;
     list->fn_free_list = free_list;
     list->fn_remove_value = remove_value;
     list->fn_dbg_print = dbg_list_print;
+    list->fn_get_index = get_index;
     return list;
 }
 
@@ -138,11 +168,12 @@ void init_proc_list(proc_list *_self)
     _self->fn_dispatcher = pl_dispatcher;
     _self->fn_push_proc = pl_push_proc;
     _self->fn_dbg_print_nodelist = pl_dbg_print_nodelist;
+    _self->fn_deadlocked = pl_deadlocked;
 }
 
 proc_ptr pl_dispatcher(proc_list *_self)
 {
-    for (int i = 0; i < _self->listSize; i++)
+    for (int i = 0; i <= _self->listSize; i++)
     {
         if (_self->nList[i]->length == 0) // Continue if there is none in this priority
             continue;
@@ -169,11 +200,38 @@ void pl_remove_proc(proc_list *_self, proc_ptr _proc)
     _self->processSize--;
     return;
 }
-void pl_dbg_print_nodelist(proc_list *_self)
+int pl_deadlocked(proc_list *_self)
+{
+    for (int i = 0; i < _self->listSize - 1; i++) // NEED -1 to exclude sentinel process.
+    {
+        for (int x = 0; x < _self->nList[i]->length; i++) // for length of processes search for a Ready one
+        {
+            proc_ptr selectProcess = _self->nList[i]->fn_get_index(_self->nList[i], x); // Pop process off
+            if (selectProcess->status == READY)
+                return FALSE;
+        }
+    }
+    return TRUE;
+}
+proc_ptr pl_find_pid(proc_list *_self, int _pid)
 {
     for (int i = 0; i < _self->listSize; i++)
     {
-        printf("%d)\n", i);
+        for (int x = 0; x < _self->nList[i]->length; i++) // for length of processes search for a Ready one
+        {
+            proc_ptr selectProcess = _self->nList[i]->fn_get_index(_self->nList[i], x); // Pop process off
+            if (selectProcess->pid == _pid)
+                return selectProcess;
+        }
+    }
+    return NULL;
+}
+void pl_dbg_print_nodelist(proc_list *_self)
+{
+    printf("%s %12s %15s %10s", "PID", "PRIORITY", "STATUS", "NAME\n");
+    for (int i = 0; i < _self->listSize; i++)
+    {
+        // printf("%d)\n", i);
         _self->nList[i]->fn_dbg_print(_self->nList[i]);
     }
 }
