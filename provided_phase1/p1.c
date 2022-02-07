@@ -2,8 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <phase1.h>
-
-#include "p1.h"
+#include "kernel.h"
 
 void p1_fork(int pid)
 {
@@ -77,6 +76,7 @@ proc_ptr get_index(nodelist *_list, int _index)
         {
             return cur->value;
         }
+        index++;
     }
     printf("GET_INDEX: REACHED END ERROR");
     return NULL;
@@ -119,8 +119,9 @@ void clear_nodes(nodelist *_list)
 {
     for (node *cur = _list->head; cur != NULL; cur = cur->next)
     {
-        free(cur->value);
-        free(cur);
+        cur->value->fn_free(cur->value); // Freeing everything malloc in proc_ptr
+        free(cur->value);                // freeing proc_ptr
+        free(cur);                       // freeing node
     }
 }
 void free_list(nodelist *_list)
@@ -151,7 +152,7 @@ nodelist *init_nodelist()
     list->fn_pop = pop;
     list->fn_pop_push_end = pop_push_end;
     list->fn_clear_nodes_free_values = clear_nodes;
-    list->fn_free_list = free_list;
+    list->fn_free = free_list;
     list->fn_remove_value = remove_value;
     list->fn_dbg_print = dbg_list_print;
     list->fn_get_index = get_index;
@@ -169,6 +170,7 @@ void init_proc_list(proc_list *_self)
     _self->fn_push_proc = pl_push_proc;
     _self->fn_dbg_print_nodelist = pl_dbg_print_nodelist;
     _self->fn_deadlocked = pl_deadlocked;
+    _self->fn_find_pid = pl_find_pid;
 }
 
 proc_ptr pl_dispatcher(proc_list *_self)
@@ -202,9 +204,9 @@ void pl_remove_proc(proc_list *_self, proc_ptr _proc)
 }
 int pl_deadlocked(proc_list *_self)
 {
-    for (int i = 0; i < _self->listSize - 1; i++) // NEED -1 to exclude sentinel process.
+    for (int i = 0; i < (_self->listSize - 2); i++) // NEED -1 to exclude sentinel process.
     {
-        for (int x = 0; x < _self->nList[i]->length; i++) // for length of processes search for a Ready one
+        for (int x = 0; x < _self->nList[i]->length; x++) // for length of processes search for a Ready one
         {
             proc_ptr selectProcess = _self->nList[i]->fn_get_index(_self->nList[i], x); // Pop process off
             if (selectProcess->status == READY)
@@ -215,9 +217,9 @@ int pl_deadlocked(proc_list *_self)
 }
 proc_ptr pl_find_pid(proc_list *_self, int _pid)
 {
-    for (int i = 0; i < _self->listSize; i++)
+    for (int i = 0; i < (_self->listSize - 1); i++)
     {
-        for (int x = 0; x < _self->nList[i]->length; i++) // for length of processes search for a Ready one
+        for (int x = 0; x < _self->nList[i]->length; x++) // for length of processes search for a Ready one
         {
             proc_ptr selectProcess = _self->nList[i]->fn_get_index(_self->nList[i], x); // Pop process off
             if (selectProcess->pid == _pid)
