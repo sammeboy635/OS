@@ -24,6 +24,7 @@ int os_get_next_pid();
 void dbg_print(char *_str, ...);
 void enableInterrupts();
 void disableInterrupts();
+void clock_handler(int dev, void *unit);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -58,7 +59,8 @@ void startup()
     // int i;      /* loop index */
     int result; /* value returned by call to fork1() */
     init_proc_list(&self);
-
+    int_vec[CLOCK_INT] = clock_handler;
+    // IntVec[CLOCK_INT] = clock_handler;
     /* initialize the process table */
     // memset(ProcTable, 0, sizeof(ProcTable));
     os_kernel_check("__START__");
@@ -124,13 +126,17 @@ void finish()
    ------------------------------------------------------------------------ */
 int fork1(char *name, int (*f)(char *), char *arg, int stacksize, int priority)
 {
+    disableInterrupts();
     dbg_print("fork1(): creating process %s\n", name);
 
     /* test if in kernel mode; halt if in user mode */
     os_kernel_check("__FORK1__");
 
-    if (self.listSize > MAXPROC) // TO MANY PROCESS IN THE LIST
+    if (self.processSize >= MAXPROC) // TO MANY PROCESS IN THE LIST
+    {
+        dbg_print("%s) Just tried forking with no processes avaible", Current->name);
         return -1;
+    }
 
     if (arg == NULL)
         arg = "\0";
@@ -140,21 +146,21 @@ int fork1(char *name, int (*f)(char *), char *arg, int stacksize, int priority)
         halt(1);
     }
     else if (stacksize < USLOSS_MIN_STACK) // Return if stack is to small TODO = CHeck if the stack is to big
+    {
+        dbg_print("%s) Stack Size Way to big", Current->name);
         return -2;
+    }
     else if (priority < MAXPRIORITY || priority > MINPRIORITY) // PRIORITY NOT WITHIN RANGE
     {
         if (priority != SENTINELPRIORITY) // IF NOT SENTINEL
         {
             dbg_print("fork1: priority out of range");
-            return -3;
+            return -1;
         }
     }
 
     proc_ptr newProcess = init_proc_ptr(name, f, arg, stacksize, priority, &next_pid, launch);
-
-    /*context_init(&(newProcess->state), psr_get(),
-                 newProcess->stack,
-                 newProcess->stacksize, launch);*/
+    int currentPid = next_pid - 1;
 
     if (strcmp("sentinel", name) == 0) // IF SENTINEL SET CURRENT
     {
@@ -173,13 +179,10 @@ int fork1(char *name, int (*f)(char *), char *arg, int stacksize, int priority)
     }
 
     self.fn_push_proc(&self, priority, newProcess); // Pushes new process onto the list
-    /* for future phase(s) */
-    // p1_fork(newProcess->pid);
 
     if (newProcess->pid != SENTINELPID) // Dont do sentinelPid
         dispatcher();
-
-    return next_pid;
+    return currentPid;
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -200,7 +203,7 @@ void launch()
 
     int result;
 
-    dbg_print("launch(): started\n");
+    dbg_print("launch(): started");
 
     /* Enable interrupts */
     enableInterrupts();
@@ -233,6 +236,7 @@ int join(int *code)
     proc_ptr child = Current->fn_child_next(Current);
     if (child == NULL) // NO CHILD PROCESS if NULL
     {
+        dbg_print("%s) Tried to join with no child\n", Current->name);
         *code = -2;
         return -2;
     }
@@ -264,6 +268,7 @@ int join(int *code)
 void quit(int code)
 {
     os_kernel_check("quit");
+    disableInterrupts();
 
     Current->status = QUIT;
     Current->quitCode = code;
@@ -271,10 +276,10 @@ void quit(int code)
 
     if (Current->fn_is_zapped(Current) == TRUE)
     {
-        Current->fn_unblock_zapped(Current);
+        Current->fn_unblock_zapped(Current); // Alerts other process of zapped process
     }
-    else if (Current->parent->status == BLOCKED) // TODO MAYBE NEED TO CHANGE TO JOINED CODE
-        Current->parent->status = READY;
+    else if (Current->parent->status == BLOCKED) // TEACHER TODO MAYBE NEED TO CHANGE TO JOINED CODE
+        Current->parent->status = READY;         // CURRENT PROCESS IS JOINED
 
     dispatcher();
 
@@ -293,50 +298,68 @@ void quit(int code)
 void dispatcher(void)
 {
     // self.fn_dbg_print_nodelist(&self);
+    disableInterrupts();
     proc_ptr nextProcess = self.fn_dispatcher(&self); // TODO MAYBE NOT DO THIS.
-    if (Current == NULL)                              // Something went really wrong.
+
+    if (Current == NULL) // Something went really wrong.
     {
         dbg_print("DISPATCHER SOMETHING WENT WRONG");
-        Current = self.fn_dispatcher(&self);
+        // Current = self.fn_dispatcher(&self);
         Current->status = RUNNING;
         enableInterrupts();
         context_switch(NULL, &Current->state);
     }
-
-    if (Current->status == READY) // Ready means its hasn't been run yet.
+    else if (Current->status == READY) // Ready means its hasn't been run yet.
     {
         Current->status = RUNNING;
         context_switch(NULL, &Current->state);
     }
     else if (Current->status == BLOCKED) // Blocked means wating for another process to join.
-    {
+    {                                    // MAKE SURE YOU DONT CHANGE THE BLOCK STATUS
         proc_ptr old = Current;
-
+        old->fn_time_end_of_run_set(old);
+        nextProcess->status = RUNNING;
+        nextProcess->fn_time_start_set(nextProcess);
         Current = nextProcess;
-        Current->status = RUNNING;
+
         enableInterrupts();
-        context_switch(&old->state, &Current->state);
+        context_switch(&old->state, &nextProcess->state);
     }
     else if (Current->status == QUIT) // Process has quit
-    {
-        proc_ptr old = Current; // Make sure dont set status for old
-
+    {                                 // DONT CHANGE CURRENT STATUS
+        proc_ptr old = Current;
+        old->fn_time_end_of_run_set(old);
+        nextProcess->status = RUNNING;
+        nextProcess->fn_time_start_set(nextProcess);
         Current = nextProcess;
-        Current->status = RUNNING;
+
         enableInterrupts();
-        context_switch(&old->state, &Current->state);
+        context_switch(&old->state, &nextProcess->state);
     }
     else if ((Current != nextProcess) & (Current->priority > nextProcess->priority))
-    {
+    { // A BETTER PROCESS HAS BEEN FOUND
         proc_ptr old = Current;
-        old->status = READY; // Set status back to ready for old
-
+        old->fn_time_end_of_run_set(old);
+        old->status = READY;
+        nextProcess->status = RUNNING;
+        nextProcess->fn_time_start_set(nextProcess);
         Current = nextProcess;
-        Current->status = RUNNING;
+
         enableInterrupts();
-        context_switch(&old->state, &Current->state);
+        context_switch(&old->state, &nextProcess->state);
     }
-    //
+    else if ((Current->fn_time_ready_to_quit(Current) == TRUE) & (Current != nextProcess)) // Went over time
+    {                                                                                      // TIME SLICED
+        proc_ptr old = Current;
+        old->fn_time_end_of_run_set(old);
+        old->status = READY;
+        nextProcess->status = RUNNING;
+        nextProcess->fn_time_start_set(nextProcess);
+        Current = nextProcess;
+
+        enableInterrupts();
+        context_switch(&old->state, &nextProcess->state);
+    }
     return;
     // p1_switch(Current->pid, next_process->pid); NEED THIS LATER
 } /* dispatcher */
@@ -369,14 +392,25 @@ int zap(int pid)
 
     proc_ptr pidProc = self.fn_find_pid(&self, pid);
     if (pidProc == NULL)
+    {
+        dbg_print("ZAP: NO process with that pid");
         return -3;
+    }
     else if (pidProc->status == QUIT) // Process Quit already
-        return -1;
+    {
+        dbg_print("ZAP: %s: Process already QUIT", pidProc->name);
+        return pidProc->quitCode;
+    }
     else if (pidProc == Current) // Trying to Zap itself
+    {
+        dbg_print("ZAP: %s: Tried to zap itself", Current->name);
         return -2;
+    }
     else
+    {
+        dbg_print("ZAP: %s: WAS ZAPPED", pidProc->name);
         pidProc->fn_zap_add(pidProc, Current);
-
+    }
     dispatcher();
 
     return TRUE;
@@ -385,23 +419,76 @@ int is_zapped(void)
 {
     return Current->fn_is_zapped(Current);
 }
+
+int block_me(int block_status)
+{
+    if (Current == NULL)
+        dbg_print("BLOCK_ME: RECIEVED NULL CURRENT");
+
+    Current->quitCode = block_status;
+    Current->status = BLOCKED;
+
+    dispatcher();
+
+    return TRUE;
+}
+int unblock_proc(int pid)
+{
+
+    proc_ptr pidProc = self.fn_find_pid(&self, pid);
+    if (pidProc == NULL) // NO SUCH PROCESS
+        return -3;
+
+    // MAYBE NEED IS ZAPPED
+
+    switch (pidProc->status)
+    {
+    case READY:
+        dbg_print("UNBLOCK_PROC: CANT UNBLOCK THE READY PROCESSES");
+        return -3;
+        break;
+    case RUNNING:
+        dbg_print("UNBLOCK_PROC: TRYING TO UNBLOCK YOURSELF I SEE :)");
+        return -3;
+        break;
+    case BLOCKED:
+        dbg_print("UNBLOCK_PROC: UNBLOCKING PROCESS");
+        pidProc->status = READY;
+        break;
+    case QUIT:
+        return -3;
+        dbg_print("UNBLOCK_PROC: PROCESS ALREADY QUIT");
+        break;
+    default:
+        dbg_print("UNBLOCK_PROC: HIT DEFAULT");
+        return -3;
+        break;
+    }
+
+    return TRUE;
+}
+
 /* check to determine if deadlock has occurred... */
 static void check_deadlock() // TEACHER ask if deadlock should look only for ready cpus. or maybe both blocked and ready.
 {
     if (self.fn_deadlocked(&self) == TRUE) // WE HAVE DEADLOCK
     {
-        dbg_print("CHECK_DEADLOCK Has DEADLOCK!\n");
+        dbg_print("CHECK_DEADLOCK: Has DEADLOCK!\n");
+        self.fn_free(&self);
         halt(1);
     }
 }
 
-void clock_handler()
+void clock_handler(int dev, void *unit)
 {
     // TODO FINISH THIS
+    // readtime(); // add to the current process
+    // timeSlice();
     // TEACHER ask for a example.
-    if (Current->runningTime - sys_clock() > 80)
+    if (Current->fn_time_ready_to_quit(Current))
     {
         dbg_print("CLOCK_HANDLER: CURRENT > THAN 80 MS");
+        dispatcher();
     }
 }
 int getpid()
@@ -411,11 +498,6 @@ int getpid()
 void dump_processes(void)
 {
     self.fn_dbg_print_nodelist(&self);
-}
-int block_me(int block_status)
-{
-    Current->status = BLOCKED;
-    return TRUE;
 }
 /*ENABLES INTERRUPTS*/
 void enableInterrupts()
@@ -441,7 +523,8 @@ void os_kernel_check(char *func_name)
     /* holds caller’s psr values */
     char buffer[200];
 
-    dbg_print("check_kernel_mode(): called for function %s\n", func_name);
+    // dbg_print("check_kernel_mode(): called for function %s", func_name);
+
     /* test if in kernel mode;
     halt if in user mode */
     caller_psr.integer_part = psr_get();
@@ -449,13 +532,14 @@ void os_kernel_check(char *func_name)
     {
         sprintf(buffer, "%s(): called while in user mode, by process %d. Halting...\n", func_name, Current->pid);
         console("%s", buffer);
+        self.fn_free(&self);
+        psr_set(psr_get() | PSR_CURRENT_MODE);
         halt(1);
     }
 }
-
 void dbg_print(char *_str, ...)
 {
-    if (DEBUG && debugflag)
+    if (DEBUG == 1)
     {
         va_list argptr;
         va_start(argptr, _str);

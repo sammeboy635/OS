@@ -12,12 +12,12 @@ int start1(char *arg)
   int status, pid1, kidpid;
   printf("start1(): started\n");
 
-  psr_set( psr_get() & ~PSR_CURRENT_MODE );
+  psr_set(psr_get() & ~PSR_CURRENT_MODE);
   pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
   printf("start1(): after fork of child %d\n", pid1);
   printf("start1(): performing join\n");
   kidpid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status); 
+  sprintf(buf, "start1(): exit status for child %d is %d\n", kidpid, status);
   printf("%s", buf);
   quit(0);
   return 0; /* so gcc will not complain about its absence... */
@@ -29,7 +29,7 @@ int XXp1(char *arg)
 
   printf("XXp1(): started -- should not see this message!!!!!!!!\n");
   printf("XXp1(): arg = `%s'\n", arg);
-  for(i = 0; i < 100; i++)
+  for (i = 0; i < 100; i++)
     ;
   quit(-3);
   return 0;

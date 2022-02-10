@@ -111,24 +111,27 @@ void remove_value(nodelist *_list, proc_ptr _value)
         }
 
         _list->length--;
-        free(cur->value);
-        free(cur);
+        _free(cur->value);
+        _free(cur);
     }
 }
-void clear_nodes(nodelist *_list)
+void clear_nodes(nodelist *_list, int clearValuesTF)
 {
-    for (node *cur = _list->head; cur != NULL; cur = cur->next)
+    node *last;
+    node *cur = _list->head;
+    while (cur != NULL)
     {
-        cur->value->fn_free(cur->value); // Freeing everything malloc in proc_ptr
-        free(cur->value);                // freeing proc_ptr
-        free(cur);                       // freeing node
+        last = cur;
+        cur = cur->next;
+        if (clearValuesTF == TRUE)
+            last->value->fn_free(last->value);
+        _free(last);
     }
 }
 void free_list(nodelist *_list)
 {
-    clear_nodes(_list);
-    free(_list);
-    printf("freed list!\n");
+    _list->fn_clear_nodes(_list, TRUE);
+    _free(_list);
 }
 void dbg_list_print(nodelist *_list)
 {
@@ -151,7 +154,7 @@ nodelist *init_nodelist()
     list->fn_push_node = push_node;
     list->fn_pop = pop;
     list->fn_pop_push_end = pop_push_end;
-    list->fn_clear_nodes_free_values = clear_nodes;
+    list->fn_clear_nodes = clear_nodes;
     list->fn_free = free_list;
     list->fn_remove_value = remove_value;
     list->fn_dbg_print = dbg_list_print;
@@ -166,21 +169,30 @@ void init_proc_list(proc_list *_self)
     for (int i = 0; i < _self->listSize; i++)
         _self->nList[i] = init_nodelist();
 
+    _self->fn_free = pl_free;
     _self->fn_dispatcher = pl_dispatcher;
     _self->fn_push_proc = pl_push_proc;
     _self->fn_dbg_print_nodelist = pl_dbg_print_nodelist;
     _self->fn_deadlocked = pl_deadlocked;
     _self->fn_find_pid = pl_find_pid;
 }
+void pl_free(proc_list *_self)
+{
+    printf("freeing ProcessLIST!!\n");
+    for (int i = 0; i < _self->listSize - 1; i++)
+    {
+        _self->nList[i]->fn_free(_self->nList[i]);
+    }
+}
 
 proc_ptr pl_dispatcher(proc_list *_self)
 {
-    for (int i = 0; i <= _self->listSize; i++)
+    for (int i = 0; i < _self->listSize; i++)
     {
         if (_self->nList[i]->length == 0) // Continue if there is none in this priority
             continue;
 
-        for (int x = 0; x < _self->nList[i]->length; i++) // for length of processes search for a Ready one
+        for (int x = 0; x < _self->nList[i]->length; x++) // for length of processes search for a Ready one
         {
             proc_ptr selectProcess = _self->nList[i]->fn_pop_push_end(_self->nList[i]); // Pop process off
             if (selectProcess->status == READY)

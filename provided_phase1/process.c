@@ -20,7 +20,8 @@ proc_ptr init_proc_ptr(char *name, int (*f)(char *), char *arg, int stacksize, i
     newProcess->priority = priority;               // Set Process priority
     newProcess->pid = (*next_pid)++;               // Check this later
     // newProcess->zappedCount = FALSE;
-    newProcess->runningTime = sys_clock();
+    newProcess->time.startTime = sys_clock();
+    newProcess->time.processTime = sys_clock();
 
     // Other processes info
 
@@ -41,6 +42,11 @@ proc_ptr init_proc_ptr(char *name, int (*f)(char *), char *arg, int stacksize, i
     newProcess->fn_is_zapped = p_is_zapped;
     newProcess->fn_unblock_zapped = p_unblock_zapped;
 
+    newProcess->fn_time_end_of_run_set = p_time_end_of_run_set;
+    newProcess->fn_time_start_set = p_time_start_set;
+    newProcess->fn_time_ready_to_run = p_time_ready_to_run;
+    newProcess->fn_time_ready_to_quit = p_time_ready_to_quit;
+
     context_init(&(newProcess->state), psr_get(),
                  newProcess->stack,
                  newProcess->stacksize, launch);
@@ -48,15 +54,35 @@ proc_ptr init_proc_ptr(char *name, int (*f)(char *), char *arg, int stacksize, i
     return newProcess;
 }
 
+void *_free(void *ptr)
+{
+    if (ptr == NULL)
+    {
+        printf("Tried to free NULL!\n");
+        return NULL;
+    }
+    free(ptr);
+    return NULL;
+}
+void _process_switch(proc_ptr *Current, proc_ptr newProc)
+{
+    proc_ptr old = *Current;
+    old->status = READY;
+    old->fn_time_end_of_run_set(old);
+    newProc->status = RUNNING;
+    newProc->fn_time_start_set(newProc);
+    *Current = newProc;
+    context_switch(&old->state, &newProc->state);
+}
 /*free everything except the pointer to it*/
 void p_free(proc_ptr _self)
 {
-    _self->child->fn_free(_self->child); // Freeing child
-    free(_self->child);
-    _self->zapList->fn_free(_self->zapList); // Freeing Zap
-    free(_self->zapList);
-
-    free(_self->stack); // Freeing stack;
+    _self->child->fn_clear_nodes(_self->child, FALSE);
+    _self->zapList->fn_clear_nodes(_self->zapList, FALSE); // Freeing Zap
+    _free(_self->child);
+    _free(_self->zapList);
+    if (_self->stack != NULL)
+        _free(_self->stack); // TEACHER ask test11
 }
 
 void p_child_add(proc_ptr _self, proc_ptr _newChild)
@@ -108,4 +134,23 @@ void p_unblock_zapped(proc_ptr _self)
     }
     // TODO maybe clear list
     //_self->zapList->fn_clear_nodes_free_values(_self->zapList);
+}
+
+void p_time_end_of_run_set(proc_ptr _self)
+{
+    long newTime = sys_clock() / 1000;
+    _self->time.totalRunTime += (_self->time.processTime - newTime);
+    _self->time.processTime = newTime;
+}
+void p_time_start_set(proc_ptr _self)
+{
+    _self->time.processTime = sys_clock() / 1000;
+}
+int p_time_ready_to_run(proc_ptr _self)
+{
+    return (_self->time.processTime - (sys_clock() / 1000) > 80) ? FALSE : TRUE;
+}
+int p_time_ready_to_quit(proc_ptr _self)
+{
+    return (_self->time.processTime - (sys_clock() / 1000) > 80) ? FALSE : TRUE;
 }

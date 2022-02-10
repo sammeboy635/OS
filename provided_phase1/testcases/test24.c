@@ -41,7 +41,6 @@ int XXp1(char *arg)
   return 0;
 } /* XXp1 */
 
-
 int XXp2(char *arg)
 {
   int result;

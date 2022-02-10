@@ -18,6 +18,13 @@ typedef struct proc_struct *proc_ptr;
 typedef struct nodelist nodelist;
 // extern struct nodelist;
 
+typedef struct os_time
+{
+   long startTime;
+   long processTime;
+   long totalRunTime;
+} os_time;
+
 struct proc_struct
 {
    int childJoinCount;
@@ -36,12 +43,15 @@ struct proc_struct
    int status; /* READY, BLOCKED, QUIT, etc. */
    int quitCode;
    /* other fields as needed... */
-   int runningTime;
+   os_time time;
 
+   /* Function to handle freeing everything inside the VARIABLE*/
    void (*fn_free)(proc_ptr _self);
-
+   /* Adds a child process to the current process*/
    void (*fn_child_add)(proc_ptr _self, proc_ptr _newChild);
+   /* Returns the child cound*/
    int (*fn_child_count)(proc_ptr _self);
+   /* Return the next child that join is refering to*/
    proc_ptr (*fn_child_next)(proc_ptr _self);
 
    /* Adds the process that zapped it and also sets block*/
@@ -52,6 +62,15 @@ struct proc_struct
    int (*fn_is_zapped)(proc_ptr _self);
    /* Unblocks all zapped process*/
    void (*fn_unblock_zapped)(proc_ptr _self);
+
+   /* Sets the time after the process switches from run to ready*/
+   void (*fn_time_end_of_run_set)(proc_ptr _self);
+   /* Sets the time for the time when the process starts*/
+   void (*fn_time_start_set)(proc_ptr _self);
+   /* Determines if the process is ready to be run returns TRUE OR FALSE*/
+   int (*fn_time_ready_to_run)(proc_ptr _self);
+   /* Determines if the process went over the time allowed return TRUE OR FALSE*/
+   int (*fn_time_ready_to_quit)(proc_ptr _self);
 };
 
 struct psr_bits
@@ -70,6 +89,8 @@ union psr_values
 };
 
 proc_ptr init_proc_ptr(char *name, int (*f)(char *), char *arg, int stacksize, int priority, unsigned int *next_pid, void(*launch));
+void *_free(void *ptr);
+void _process_switch(proc_ptr *Current, proc_ptr newProc);
 void p_free(proc_ptr _self);
 
 void p_child_add(proc_ptr _self, proc_ptr _newChild);
@@ -81,6 +102,11 @@ int p_zap_count(proc_ptr _self);
 int p_is_zapped(proc_ptr _self);
 void p_unblock_zapped(proc_ptr _self);
 
+void p_time_end_of_run_set(proc_ptr _self);
+void p_time_start_set(proc_ptr _self);
+int p_time_ready_to_run(proc_ptr _self);
+int p_time_ready_to_quit(proc_ptr _self);
+
 /* Some useful constants.  Add more as needed... */
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
@@ -89,7 +115,7 @@ void p_unblock_zapped(proc_ptr _self);
 #define SENTINELPRIORITY LOWEST_PRIORITY
 // More...
 #define TRUE 1
-#define FALSE -1
+#define FALSE 0
 
 /*-----------------------P1.c------------------------*/
 
@@ -117,7 +143,7 @@ typedef struct nodelist
    /*Removes the value from the list*/
    void (*fn_remove_value)(struct nodelist *_list, proc_ptr _value);
    /* Clears all the nodes and frees the values DONOTCALL IN ANY OTHER OTHER THEN MAIN SELF*/
-   void (*fn_clear_nodes_free_values)(struct nodelist *_list);
+   void (*fn_clear_nodes)(struct nodelist *_list, int clearValuesTF);
    /*clears the node and then free the list DONOTCALL IN ANY OTHER OTHER THEN MAIN SELF*/
    void (*fn_free)(struct nodelist *_list);
    /*Prints the entire nodelist out*/
@@ -130,7 +156,7 @@ proc_ptr pop(nodelist *_list);
 proc_ptr pop_push_end(nodelist *_list);
 proc_ptr fn_get_index(nodelist *_list, int _index);
 void remove_value(nodelist *_list, proc_ptr _value);
-void clear_nodes(nodelist *_list);
+void clear_nodes(nodelist *_list, int clearValuesTF);
 void free_list(nodelist *_list);
 void dbg_list_print(nodelist *_list);
 nodelist *init_nodelist();
@@ -145,6 +171,8 @@ typedef struct proc_list
    nodelist *nList[(MINPRIORITY + 2)];
    /* Goes through nList to find the perfect process to run*/
    proc_ptr (*fn_dispatcher)(struct proc_list *_self);
+   /* frees all the list */
+   void (*fn_free)(struct proc_list *_self);
    /*inserts the processing in the correct location*/
    void (*fn_push_proc)(struct proc_list *_self, int _priority, proc_ptr _proc);
    /* Goes through nList and prints it out*/
@@ -159,6 +187,7 @@ typedef struct proc_list
 } proc_list;
 
 void init_proc_list(proc_list *_self);
+void pl_free(proc_list *_self);
 proc_ptr pl_dispatcher(proc_list *_self);
 void pl_push_proc(proc_list *_self, int _priority, proc_ptr _proc);
 void pl_remove_proc(proc_list *_self, proc_ptr _proc);

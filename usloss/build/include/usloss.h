@@ -28,7 +28,7 @@ extern void trace(char *string, ...);
 extern void vtrace(char *string, va_list ap);
 extern void context_init(context *state, unsigned int psr,
 						 char *stack, int stackSize, void (*func)(void));
-extern void context_switch(context *old, context *new);
+extern void context_switch(context *old, context *news);
 extern unsigned int psr_get(void);
 extern void psr_set(unsigned int psr);
 extern int sys_clock(void);
