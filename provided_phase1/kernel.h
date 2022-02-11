@@ -140,8 +140,8 @@ typedef struct nodelist
    proc_ptr (*fn_pop_push_end)(struct nodelist *_list);
    /*Get the index of item like a array, returns null if out of index.*/
    proc_ptr (*fn_get_index)(struct nodelist *_list, int _index);
-   /*Removes the value from the list*/
-   void (*fn_remove_value)(struct nodelist *_list, proc_ptr _value);
+   /*Removes the value from the list option for freeing value TF*/
+   void (*fn_remove_value)(struct nodelist *_list, proc_ptr _value, int clearValuesTF);
    /* Clears all the nodes and frees the values DONOTCALL IN ANY OTHER OTHER THEN MAIN SELF*/
    void (*fn_clear_nodes)(struct nodelist *_list, int clearValuesTF);
    /*clears the node and then free the list DONOTCALL IN ANY OTHER OTHER THEN MAIN SELF*/
@@ -156,7 +156,7 @@ void push(nodelist *_list, proc_ptr _value);
 proc_ptr pop(nodelist *_list);
 proc_ptr pop_push_end(nodelist *_list);
 proc_ptr fn_get_index(nodelist *_list, int _index);
-void remove_value(nodelist *_list, proc_ptr _value);
+void remove_value(nodelist *_list, proc_ptr _value, int clearValueTF);
 void clear_nodes(nodelist *_list, int clearValuesTF);
 void free_list(nodelist *_list);
 proc_ptr get_index(nodelist *_list, int _index);

@@ -323,8 +323,8 @@ void dispatcher(void)
         enableInterrupts();
         context_switch(&old->state, &nextProcess->state);
     }
-    else if ((Current->fn_time_ready_to_quit(Current) == TRUE) & (Current != nextProcess)) // Went over time
-    {                                                                                      // TIME SLICED
+    else if ((Current->fn_time_ready_to_quit(Current) == TRUE) & (Current != nextProcess) & (Current->priority > nextProcess->priority)) // Went over time
+    {                                                                                                                                    // TIME SLICED
         proc_ptr old = Current;
         old->fn_time_end_of_run_set(old);
         old->status = READY;
@@ -374,11 +374,12 @@ int zap(int pid)
     else if (pidProc->status == QUIT) // Process Quit already
     {
         dbg_print("ZAP: %s: Process already QUIT", pidProc->name);
-        return pidProc->quitCode;
+        return 0;
     }
     else if (pidProc == Current) // Trying to Zap itself
     {
         dbg_print("ZAP: %s: Tried to zap itself", Current->name);
+        halt(1);
         return -2;
     }
     else
@@ -499,7 +500,7 @@ void os_kernel_check(char *func_name)
     {
         sprintf(buffer, "%s(): called while in user mode, by process %d. Halting...\n", func_name, Current->pid);
         console("%s", buffer);
-        self.fn_free(&self);
+        // self.fn_free(&self);
         psr_set(psr_get() | PSR_CURRENT_MODE);
         halt(1);
     }
@@ -510,7 +511,7 @@ void dbg_print(char *_str, ...)
     {
         va_list argptr;
         va_start(argptr, _str);
-        printf("%s\n", _str);
+        console(_str, argptr);
         va_end(argptr);
     }
 }

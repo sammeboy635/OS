@@ -12,6 +12,7 @@ void init_proc_list(proc_list *_self)
         _self->nList[i] = init_nodelist();
 
     _self->fn_free = pl_free;
+    _self->fn_remove_proc = pl_remove_proc;
     _self->fn_dispatcher = pl_dispatcher;
     _self->fn_push_proc = pl_push_proc;
     _self->fn_dbg_print_nodelist = pl_dbg_print_nodelist;
@@ -52,7 +53,7 @@ void pl_push_proc(proc_list *_self, int _priority, proc_ptr _proc)
 }
 void pl_remove_proc(proc_list *_self, proc_ptr _proc)
 {
-    _self->nList[_proc->priority]->fn_remove_value(_self->nList[_proc->priority], _proc);
+    _self->nList[_proc->priority]->fn_remove_value(_self->nList[_proc->priority], _proc, TRUE);
     _self->processSize--;
     return;
 }

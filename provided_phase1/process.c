@@ -62,6 +62,7 @@ void *_free(void *ptr)
         return NULL;
     }
     free(ptr);
+    ptr = NULL; // NEW
     return NULL;
 }
 void _process_switch(proc_ptr *Current, proc_ptr newProc)
@@ -118,9 +119,7 @@ int p_is_zapped(proc_ptr _self)
 }
 void p_unblock_zapped(proc_ptr _self)
 {
-    if (_self->fn_is_zapped(_self) == FALSE)
-        return;
-
+    //if (_self->fn_is_zapped(_self) == FALSE) // This also returns parents from joins
     for (int i = 0; i < _self->zapList->length; i++)
     {
         proc_ptr cur = _self->zapList->fn_get_index(_self->zapList, i);
@@ -138,19 +137,19 @@ void p_unblock_zapped(proc_ptr _self)
 
 void p_time_end_of_run_set(proc_ptr _self)
 {
-    long newTime = sys_clock() / 1000;
-    _self->time.totalRunTime += (_self->time.processTime - newTime); // TEACHER ASK ABOUT TIMING
+    long newTime = sys_clock();
+    _self->time.totalRunTime += newTime - _self->time.processTime; // TEACHER ASK ABOUT TIMING
     _self->time.processTime = newTime;
 }
 void p_time_start_set(proc_ptr _self)
 {
-    _self->time.processTime = sys_clock() / 1000;
+    _self->time.processTime = sys_clock();
 }
 int p_time_ready_to_run(proc_ptr _self)
 {
-    return (_self->time.processTime - (sys_clock() / 1000) > 80) ? FALSE : TRUE;
+    return (_self->time.processTime - (sys_clock()) > 80) ? FALSE : TRUE;
 }
 int p_time_ready_to_quit(proc_ptr _self)
 {
-    return (_self->time.processTime - (sys_clock() / 1000) > 80) ? FALSE : TRUE;
+    return (_self->time.processTime - (sys_clock()) > 80) ? FALSE : TRUE;
 }

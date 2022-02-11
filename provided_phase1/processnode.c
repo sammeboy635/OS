@@ -88,7 +88,7 @@ proc_ptr get_index(nodelist *_list, int _index)
     printf("GET_INDEX: REACHED END ERROR");
     return NULL;
 }
-void remove_value(nodelist *_list, proc_ptr _value)
+void remove_value(nodelist *_list, proc_ptr _value, int clearValueTF)
 {
     node *last = _list->head;
     node *cur = last;

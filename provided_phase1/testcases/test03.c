@@ -16,8 +16,9 @@ int start1(char *arg)
   printf("start1(): performing join\n");
   dump_processes();
   kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
+  sprintf(buf, "start1(): exit status for child %d is %d\n", kid_pid, status);
   printf("%s", buf);
+  quit(-1);
   return 0;
 }
 
@@ -46,14 +47,13 @@ int XXp1(char *arg)
   printf("XXp1(): performing join's\n");
   kid_pid1 = join(&status);
   printf("XXp1(): first join returned kid_pid = %d, status = %d\n",
-          kid_pid1, status);
+         kid_pid1, status);
   kid_pid2 = join(&status);
   printf("XXp1(): second join returned kid_pid = %d, status = %d\n",
-          kid_pid2, status);
+         kid_pid2, status);
   quit(-3);
   return 0;
 } /* XXp1 */
-
 
 int XXp2(char *arg)
 {
@@ -62,4 +62,3 @@ int XXp2(char *arg)
   quit(5);
   return 0;
 } /* XXp2 */
-
