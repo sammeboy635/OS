@@ -2,7 +2,7 @@ TARGET=libphase1.a
 ASSIGNMENT= 452phase1
 CC=gcc
 AR=ar
-COBJS= phase1.o process.o
+COBJS= phase1.o process.o processlist.o processnode.o
 CSRCS=${COBJS:.o=.c}
 HDRS=kernel.h
 INCLUDE = ./usloss/include
@@ -31,13 +31,13 @@ $(TARGET):	$(COBJS)
 #$(TESTS):	$(TARGET) $(TESTDIR)/$@.c
 $(TESTS):	$(TARGET) p1.o
 	$(CC) $(CFLAGS) -c $(TESTDIR)/$@.c
-	$(CC) $(LDFLAGS) -o $@ $@.o $(LIBS) p1.o process.o
+	$(CC) $(LDFLAGS) -o $@ $@.o $(LIBS) p1.o process.o processlist.o processnode.o
 
 $(TESTDIR)/$(TESTS).c:
 
 clean:
 	rm -f $(COBJS) $(TARGET) test?.o test??.o test? test?? \
-		core term*.out p1.o process.o
+		core term*.out p1.o process.o processlist.o processnode.o
 cleanAll:
 	rm -f test??.c
 	make clean

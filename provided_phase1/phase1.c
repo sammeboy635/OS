@@ -17,6 +17,7 @@ extern int start1(char *);
 void dispatcher(void);
 void launch();
 // static void enableInterrupts();
+
 static void check_deadlock();
 
 void os_kernel_check(char *func_name);
@@ -28,22 +29,15 @@ void clock_handler(int dev, void *unit);
 
 /* -------------------------- Globals ------------------------------------- */
 
-/* Patrick's debugging global variable... */
-int debugflag = 1;
+// test03 ms counter is not fully working
+// test10 maybe?
+// test11 should I not free if halted by kernel?
+// test12 ?
+// test17 global vars
 
-/* the process table */
-// proc_struct ProcTable[MAXPROC];
-proc_list self;
-
-int numProc = 0;
-
-/* Process lists  */
-
-/* current process ID */
-proc_ptr Current;
-
-/* the next pid to be assigned */
-unsigned int next_pid = SENTINELPID;
+proc_list self;                      // Processlist
+proc_ptr Current;                    // Current Process
+unsigned int next_pid = SENTINELPID; // Next pid
 
 /* -------------------------- Functions ----------------------------------- */
 /* ------------------------------------------------------------------------
@@ -56,24 +50,16 @@ unsigned int next_pid = SENTINELPID;
    ----------------------------------------------------------------------- */
 void startup()
 {
-    // int i;      /* loop index */
-    int result; /* value returned by call to fork1() */
+    Current = NULL;
+    int result; // Returned from forks
     init_proc_list(&self);
     int_vec[CLOCK_INT] = clock_handler;
-    // IntVec[CLOCK_INT] = clock_handler;
-    /* initialize the process table */
-    // memset(ProcTable, 0, sizeof(ProcTable));
+
     os_kernel_check("__START__");
-
-    /* Initialize the Ready list, etc. */
     dbg_print("startup(): initializing the Ready & Blocked lists");
-    // ReadyList = NULL;
-
-    /* Initialize the clock interrupt handler */
-    Current = NULL;
-    /* startup a sentinel process */
     dbg_print("startup(): calling fork1() for sentinel");
 
+    /* startup a sentinel process */
     result = fork1("sentinel\0", sentinel, NULL, 2 * USLOSS_MIN_STACK,
                    SENTINELPRIORITY);
     if (result < 0)
@@ -84,7 +70,6 @@ void startup()
 
     /* start the test process */
     dbg_print("startup(): calling fork1() for start1");
-
     result = fork1("start1\0", start1, NULL, 2 * USLOSS_MIN_STACK, 1);
     if (result < 0)
     {
@@ -92,9 +77,6 @@ void startup()
         halt(1);
     }
 
-    // launch();
-
-    dbg_print("startup(): Should not see this message! ");
     dbg_print("Returned from fork1 call that created start1");
 
     return;
@@ -127,10 +109,8 @@ void finish()
 int fork1(char *name, int (*f)(char *), char *arg, int stacksize, int priority)
 {
     disableInterrupts();
+    os_kernel_check("__FORK1__"); // halts if not in kernel
     dbg_print("fork1(): creating process %s\n", name);
-
-    /* test if in kernel mode; halt if in user mode */
-    os_kernel_check("__FORK1__");
 
     if (self.processSize >= MAXPROC) // TO MANY PROCESS IN THE LIST
     {
@@ -159,13 +139,12 @@ int fork1(char *name, int (*f)(char *), char *arg, int stacksize, int priority)
         }
     }
 
+    // Inits new process
+    int currentPid = next_pid;
     proc_ptr newProcess = init_proc_ptr(name, f, arg, stacksize, priority, &next_pid, launch);
-    int currentPid = next_pid - 1;
 
     if (strcmp("sentinel", name) == 0) // IF SENTINEL SET CURRENT
-    {
         Current = newProcess;
-    }
     else if (strcmp("start1", name) == 0) // START1 SET CHILD OF SENTINEL AND SET CURRENT TO START1
     {
         Current->fn_child_add(Current, newProcess);
@@ -195,12 +174,11 @@ int fork1(char *name, int (*f)(char *), char *arg, int stacksize, int priority)
    ------------------------------------------------------------------------ */
 void launch()
 {
-    if (Current == NULL)
+    if (Current == NULL) // Just making sure its never NULL
     {
         dbg_print("Launch: Current is NULL");
         halt(1);
     }
-
     int result;
 
     dbg_print("launch(): started");
@@ -233,8 +211,8 @@ void launch()
 int join(int *code)
 {
     disableInterrupts();
-    proc_ptr child = Current->fn_child_next(Current);
-    if (child == NULL) // NO CHILD PROCESS if NULL
+    proc_ptr child = Current->fn_child_next(Current); // Grabs the child in order they came in
+    if (child == NULL)                                // NO CHILD PROCESS if NULL
     {
         dbg_print("%s) Tried to join with no child\n", Current->name);
         *code = -2;
@@ -274,11 +252,9 @@ void quit(int code)
     Current->quitCode = code;
     dbg_print("PID) %d just quit", Current->pid);
 
-    if (Current->fn_is_zapped(Current) == TRUE)
-    {
-        Current->fn_unblock_zapped(Current); // Alerts other process of zapped process
-    }
-    else if (Current->parent->status == BLOCKED) // TEACHER TODO MAYBE NEED TO CHANGE TO JOINED CODE
+    if (Current->fn_is_zapped(Current) == TRUE)  // Teacher can a process be joined as well as zapped
+        Current->fn_unblock_zapped(Current);     // Alerts other process of zapped process
+    else if (Current->parent->status == BLOCKED) // Determine if process parent was joined
         Current->parent->status = READY;         // CURRENT PROCESS IS JOINED
 
     dispatcher();
@@ -297,9 +273,8 @@ void quit(int code)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
-    // self.fn_dbg_print_nodelist(&self);
     disableInterrupts();
-    proc_ptr nextProcess = self.fn_dispatcher(&self); // TODO MAYBE NOT DO THIS.
+    proc_ptr nextProcess = self.fn_dispatcher(&self); // Grabs next process
 
     if (Current == NULL) // Something went really wrong.
     {
@@ -420,7 +395,7 @@ int is_zapped(void)
     return Current->fn_is_zapped(Current);
 }
 
-int block_me(int block_status)
+int block_me(int block_status) // Teacher What is this status for?
 {
     if (Current == NULL)
         dbg_print("BLOCK_ME: RECIEVED NULL CURRENT");
@@ -432,7 +407,7 @@ int block_me(int block_status)
 
     return TRUE;
 }
-int unblock_proc(int pid)
+int unblock_proc(int pid) // Teacher what do I return here?
 {
 
     proc_ptr pidProc = self.fn_find_pid(&self, pid);
@@ -481,10 +456,6 @@ static void check_deadlock() // TEACHER ask if deadlock should look only for rea
 
 void clock_handler(int dev, void *unit)
 {
-    // TODO FINISH THIS
-    // readtime(); // add to the current process
-    // timeSlice();
-    // TEACHER ask for a example.
     if (Current->fn_time_ready_to_quit(Current))
     {
         dbg_print("CLOCK_HANDLER: CURRENT > THAN 80 MS");
@@ -502,14 +473,11 @@ void dump_processes(void)
 /*ENABLES INTERRUPTS*/
 void enableInterrupts()
 {
-    // TEACHER ASK IF IM DOING THIS RIGHT.
     os_kernel_check("enableInterrupts");
     psr_set(psr_get() | PSR_CURRENT_INT);
 }
 
-/*
- * Disables the interrupts.
- */
+/*Disables the interrupts.*/
 void disableInterrupts()
 {
     os_kernel_check("disableInterrupts");
@@ -525,8 +493,7 @@ void os_kernel_check(char *func_name)
 
     // dbg_print("check_kernel_mode(): called for function %s", func_name);
 
-    /* test if in kernel mode;
-    halt if in user mode */
+    /* test if in kernel mode; halt if in user mode */
     caller_psr.integer_part = psr_get();
     if (caller_psr.bits.cur_mode == 0)
     {
@@ -539,7 +506,7 @@ void os_kernel_check(char *func_name)
 }
 void dbg_print(char *_str, ...)
 {
-    if (DEBUG == 1)
+    if (DEBUG == 1) // TEACHER ASK ABOUT VARS NOT PRINTING RIGHT
     {
         va_list argptr;
         va_start(argptr, _str);

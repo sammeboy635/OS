@@ -150,6 +150,7 @@ typedef struct nodelist
    void (*fn_dbg_print)(struct nodelist *_list);
 } nodelist;
 
+nodelist *init_nodelist();
 void push_node(nodelist *_list, node *cur);
 void push(nodelist *_list, proc_ptr _value);
 proc_ptr pop(nodelist *_list);
@@ -158,8 +159,8 @@ proc_ptr fn_get_index(nodelist *_list, int _index);
 void remove_value(nodelist *_list, proc_ptr _value);
 void clear_nodes(nodelist *_list, int clearValuesTF);
 void free_list(nodelist *_list);
+proc_ptr get_index(nodelist *_list, int _index);
 void dbg_list_print(nodelist *_list);
-nodelist *init_nodelist();
 
 typedef struct proc_list
 {

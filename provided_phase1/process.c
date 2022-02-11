@@ -82,7 +82,7 @@ void p_free(proc_ptr _self)
     _free(_self->child);
     _free(_self->zapList);
     if (_self->stack != NULL)
-        _free(_self->stack); // TEACHER ask test11
+        _free(_self->stack); // TEACHER ask test11 Start1 error;
 }
 
 void p_child_add(proc_ptr _self, proc_ptr _newChild)
@@ -139,7 +139,7 @@ void p_unblock_zapped(proc_ptr _self)
 void p_time_end_of_run_set(proc_ptr _self)
 {
     long newTime = sys_clock() / 1000;
-    _self->time.totalRunTime += (_self->time.processTime - newTime);
+    _self->time.totalRunTime += (_self->time.processTime - newTime); // TEACHER ASK ABOUT TIMING
     _self->time.processTime = newTime;
 }
 void p_time_start_set(proc_ptr _self)
