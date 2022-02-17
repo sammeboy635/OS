@@ -21,7 +21,7 @@ void init_proc_list(proc_list *_self)
 }
 void pl_free(proc_list *_self)
 {
-    printf("freeing ProcessLIST!!\n");
+    printf("All processes completed.\n");
     for (int i = 0; i < _self->listSize - 1; i++)
     {
         _self->nList[i]->fn_free(_self->nList[i]);
@@ -54,7 +54,6 @@ void pl_push_proc(proc_list *_self, int _priority, proc_ptr _proc)
 void pl_remove_proc(proc_list *_self, proc_ptr _proc)
 {
     _self->nList[_proc->priority]->fn_remove_value(_self->nList[_proc->priority], _proc, TRUE);
-    _self->processSize--;
     return;
 }
 int pl_deadlocked(proc_list *_self)

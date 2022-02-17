@@ -4,7 +4,6 @@
 #include <phase1.h>
 #include "kernel.h"
 
-
 nodelist *init_nodelist()
 {
     nodelist *list = (nodelist *)malloc(sizeof(nodelist));
@@ -118,7 +117,10 @@ void remove_value(nodelist *_list, proc_ptr _value, int clearValueTF)
         }
 
         _list->length--;
-        _free(cur->value);
+        if (clearValueTF == TRUE)
+        {
+            _free(cur->value);
+        }
         _free(cur);
     }
 }
@@ -150,4 +152,3 @@ void dbg_list_print(nodelist *_list)
         i++;
     }
 }
-

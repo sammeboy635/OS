@@ -29,7 +29,7 @@ struct proc_struct
 {
    int childJoinCount;
    nodelist *child;
-   // int zappedCount;
+   int isZappedCount;
    nodelist *zapList;
    proc_ptr parent;        // ADDED BY ME
    char name[MAXNAME];     /* process's name */
@@ -49,10 +49,13 @@ struct proc_struct
    void (*fn_free)(proc_ptr _self);
    /* Adds a child process to the current process*/
    void (*fn_child_add)(proc_ptr _self, proc_ptr _newChild);
+   /* remove child from list without freeing*/
+   void (*fn_child_remove)(proc_ptr _self, proc_ptr _oldchild);
    /* Returns the child cound*/
    int (*fn_child_count)(proc_ptr _self);
    /* Return the next child that join is refering to*/
    proc_ptr (*fn_child_next)(proc_ptr _self);
+   int (*fn_child_active)(proc_ptr _self);
 
    /* Adds the process that zapped it and also sets block*/
    void (*fn_zap_add)(proc_ptr _self, proc_ptr _zapProc);
@@ -94,8 +97,10 @@ void _process_switch(proc_ptr *Current, proc_ptr newProc);
 void p_free(proc_ptr _self);
 
 void p_child_add(proc_ptr _self, proc_ptr _newChild);
+void p_child_remove(proc_ptr _self, proc_ptr _oldchild);
 int p_child_count(proc_ptr _self);
 proc_ptr p_child_next(proc_ptr _self);
+int p_child_active(proc_ptr _self);
 
 void p_zap_add(proc_ptr _self, proc_ptr _zapProc);
 int p_zap_count(proc_ptr _self);

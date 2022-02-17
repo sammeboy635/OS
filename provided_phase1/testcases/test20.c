@@ -19,7 +19,7 @@ int start1(char *arg)
   for (i = 0; i < MAXPROC + 2; i++)
   {
     pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 2);
-    printf("%d,", pid1);
+
     if (pid1 == -1)
     {
       console("TEST:");
@@ -29,7 +29,6 @@ int start1(char *arg)
   for (i = 0; i < MAXPROC + 2; i++)
   {
     join(&pid1);
-    printf("%d,", pid1);
   }
   quit(-1);
   return 0;

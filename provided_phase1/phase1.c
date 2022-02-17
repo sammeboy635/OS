@@ -28,6 +28,8 @@ void disableInterrupts();
 void clock_handler(int dev, void *unit);
 
 /* -------------------------- Globals ------------------------------------- */
+// test03
+// XXp1(): after zap'ing first child, status = 1
 
 // test03 ms counter is not fully working
 // test10 maybe?
@@ -218,18 +220,28 @@ int join(int *code)
         *code = -2;
         return -2;
     }
+    else if (child->fn_is_zapped(child) == TRUE)
+    {
+        *code = child->quitCode;
+        return -1;
+    }
     else if (child->status == QUIT) // CHILD QUIT
     {
-        Current->childJoinCount++;
+        // Current->childJoinCount++;
+        Current->fn_child_remove(Current, child);
+        self.fn_remove_proc(&self, child);
         *code = child->quitCode;
         return child->pid;
     }
-
+    child->zapList->fn_push(child->zapList, Current); // adding parent to child list
     Current->status = BLOCKED;
     dispatcher();
 
+    Current->fn_child_remove(Current, child);
+    self.fn_remove_proc(&self, child);
+
     enableInterrupts();
-    Current->childJoinCount++;
+    // Current->childJoinCount++;
     *code = child->quitCode;
     return child->pid;
 } /* join */
@@ -248,15 +260,26 @@ void quit(int code)
     os_kernel_check("quit");
     disableInterrupts();
 
+    Current->fn_time_end_of_run_set(Current);
+
     Current->status = QUIT;
     Current->quitCode = code;
     dbg_print("PID) %d just quit", Current->pid);
+    self.processSize--;
 
-    if (Current->fn_is_zapped(Current) == TRUE)  // Teacher can a process be joined as well as zapped
-        Current->fn_unblock_zapped(Current);     // Alerts other process of zapped process
-    else if (Current->parent->status == BLOCKED) // Determine if process parent was joined
-        Current->parent->status = READY;         // CURRENT PROCESS IS JOINED
+    if (Current->fn_child_active(Current) == TRUE) // Halt if there is active children
+    {
+        console("process %s quit with active children. Halting...", Current->name);
+        halt(1);
+    }
 
+    // Testing out new code
+    // if (Current->fn_is_zapped(Current) == TRUE)  // Teacher can a process be joined as well as zapped
+    //     Current->fn_unblock_zapped(Current);     // Alerts other process of zapped process
+    // else if (Current->parent->status == BLOCKED) // Determine if process parent was joined
+    //     Current->parent->status = READY;         // CURRENT PROCESS IS JOINED
+    if (Current->zapList->length > 0)
+        Current->fn_unblock_zapped(Current);
     dispatcher();
 
 } /* quit */
@@ -274,23 +297,21 @@ void quit(int code)
 void dispatcher(void)
 {
     disableInterrupts();
-    proc_ptr nextProcess = self.fn_dispatcher(&self); // Grabs next process
 
     if (Current == NULL) // Something went really wrong.
     {
         dbg_print("DISPATCHER SOMETHING WENT WRONG");
-        // Current = self.fn_dispatcher(&self);
-        Current->status = RUNNING;
-        enableInterrupts();
-        context_switch(NULL, &Current->state);
+        halt(1);
     }
     else if (Current->status == READY) // Ready means its hasn't been run yet.
     {
         Current->status = RUNNING;
+        Current->fn_time_end_of_run_set(Current);
         context_switch(NULL, &Current->state);
     }
     else if (Current->status == BLOCKED) // Blocked means wating for another process to join.
     {                                    // MAKE SURE YOU DONT CHANGE THE BLOCK STATUS
+        proc_ptr nextProcess = self.fn_dispatcher(&self);
         proc_ptr old = Current;
         old->fn_time_end_of_run_set(old);
         nextProcess->status = RUNNING;
@@ -302,6 +323,7 @@ void dispatcher(void)
     }
     else if (Current->status == QUIT) // Process has quit
     {                                 // DONT CHANGE CURRENT STATUS
+        proc_ptr nextProcess = self.fn_dispatcher(&self);
         proc_ptr old = Current;
         old->fn_time_end_of_run_set(old);
         nextProcess->status = RUNNING;
@@ -311,7 +333,8 @@ void dispatcher(void)
         enableInterrupts();
         context_switch(&old->state, &nextProcess->state);
     }
-    else if ((Current != nextProcess) & (Current->priority > nextProcess->priority))
+    proc_ptr nextProcess = self.fn_dispatcher(&self);
+    if ((Current != nextProcess) & (Current->priority > nextProcess->priority))
     { // A BETTER PROCESS HAS BEEN FOUND
         proc_ptr old = Current;
         old->fn_time_end_of_run_set(old);
@@ -323,8 +346,8 @@ void dispatcher(void)
         enableInterrupts();
         context_switch(&old->state, &nextProcess->state);
     }
-    else if ((Current->fn_time_ready_to_quit(Current) == TRUE) & (Current != nextProcess) & (Current->priority > nextProcess->priority)) // Went over time
-    {                                                                                                                                    // TIME SLICED
+    else if ((Current->fn_time_ready_to_quit(Current)) & (Current != nextProcess) & (Current->priority >= nextProcess->priority)) // Went over time
+    {                                                                                                                             // TIME SLICED
         proc_ptr old = Current;
         old->fn_time_end_of_run_set(old);
         old->status = READY;
@@ -369,16 +392,32 @@ int zap(int pid)
     if (pidProc == NULL)
     {
         dbg_print("ZAP: NO process with that pid");
-        return -3;
+        console("zap(): process being zapped does not exist.  Halting...\n");
+        halt(1);
     }
     else if (pidProc->status == QUIT) // Process Quit already
     {
         dbg_print("ZAP: %s: Process already QUIT", pidProc->name);
         return 0;
     }
+    else if (pidProc->status == BLOCKED)
+    {
+        dbg_print("ZAP: %s: Tried zapping a blocked process", pidProc->name);
+        pidProc->fn_zap_add(pidProc, Current);
+    }
+    else if (Current->parent == pidProc)
+    {
+        console("Trying to zap parent.");
+        halt(1);
+    }
+    else if (pidProc->fn_is_zapped(pidProc) == FALSE & pidProc->fn_zap_count(pidProc) == 1)
+    {
+        pidProc->pid = -1;
+        return 0;
+    }
     else if (pidProc == Current) // Trying to Zap itself
     {
-        dbg_print("ZAP: %s: Tried to zap itself", Current->name);
+        console("zap(): process %d tried to zap itself.  Halting...", Current->pid);
         halt(1);
         return -2;
     }
@@ -389,7 +428,7 @@ int zap(int pid)
     }
     dispatcher();
 
-    return TRUE;
+    return 0; // Changed from True
 }
 int is_zapped(void)
 {
@@ -406,7 +445,9 @@ int block_me(int block_status) // Teacher What is this status for?
 
     dispatcher();
 
-    return TRUE;
+    if (Current->fn_is_zapped(Current) || Current->fn_zap_count(Current) != 0)
+        return -1;
+    return 0;
 }
 int unblock_proc(int pid) // Teacher what do I return here?
 {
@@ -440,8 +481,10 @@ int unblock_proc(int pid) // Teacher what do I return here?
         return -3;
         break;
     }
+    // if (pidProc->fn_is_zapped(pidProc) || pidProc->fn_zap_count(pidProc) != 0)
 
-    return TRUE;
+    dispatcher();
+    return 0;
 }
 
 /* check to determine if deadlock has occurred... */
@@ -450,6 +493,12 @@ static void check_deadlock() // TEACHER ask if deadlock should look only for rea
     if (self.fn_deadlocked(&self) == TRUE) // WE HAVE DEADLOCK
     {
         dbg_print("CHECK_DEADLOCK: Has DEADLOCK!\n");
+        if (self.processSize > 1)
+        {
+            console("check_deadlock(): num_proc = %d\n", self.processSize);
+            console("check_deadlock(): processes still present.  Halting...\n");
+            halt(1);
+        }
         self.fn_free(&self);
         halt(1);
     }
@@ -501,7 +550,7 @@ void os_kernel_check(char *func_name)
         sprintf(buffer, "%s(): called while in user mode, by process %d. Halting...\n", func_name, Current->pid);
         console("%s", buffer);
         // self.fn_free(&self);
-        psr_set(psr_get() | PSR_CURRENT_MODE);
+        // psr_set(psr_get() | PSR_CURRENT_MODE);
         halt(1);
     }
 }

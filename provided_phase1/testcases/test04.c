@@ -13,7 +13,7 @@ int start1(char *arg)
 
    for (j = 0; j < 2; j++)
    {
-      for (i = 2; i < MAXPROC; i++)
+      for (i = 0; i < MAXPROC; i++)
       {
          kidpid = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
          printf("start1(): after fork of child %d\n", kidpid);
@@ -21,7 +21,7 @@ int start1(char *arg)
 
       dump_processes();
 
-      for (i = 2; i < MAXPROC; i++)
+      for (i = 0; i < MAXPROC; i++)
       {
          kidpid = join(&status);
          printf("start1(): after join of child %d, status = %d\n",

@@ -48,15 +48,15 @@ int start1(char *arg)
   printf("start1(): after fork of child %d\n", pid3);
   printf("start1(): performing first join\n");
   kidpid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status);
+  sprintf(buf, "start1(): exit status for child %d is %d\n", kidpid, status);
   printf("%s", buf);
   printf("start1(): performing second join\n");
   kidpid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status);
+  sprintf(buf, "start1(): exit status for child %d is %d\n", kidpid, status);
   printf("%s", buf);
   printf("start1(): performing third join\n");
   kidpid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status);
+  sprintf(buf, "start1(): exit status for child %d is %d\n", kidpid, status);
   printf("%s", buf);
   return 0;
 } /* start1 */
@@ -91,7 +91,7 @@ int XXp3(char *arg)
   printf("XXp3(): after fork of child %d\n", pid1);
   printf("XXp3(): performing first join\n");
   kidpid = join(&status);
-  sprintf(buf,"XXp3(): exit status for child %d is %d\n", kidpid, status);
+  sprintf(buf, "XXp3(): exit status for child %d is %d\n", kidpid, status);
   printf("%s", buf);
   quit(-3);
   return 0;

@@ -30,6 +30,7 @@ int start1(char *arg)
                 kidpid, status);
       }
    }
+   quit(0);
    return 0;
 }
 
