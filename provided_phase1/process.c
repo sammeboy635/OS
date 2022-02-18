@@ -22,6 +22,7 @@ proc_ptr init_proc_ptr(char *name, int (*f)(char *), char *arg, int stacksize, i
 
     newProcess->time.startTime = sys_clock();
     newProcess->time.processTime = sys_clock();
+    newProcess->time.totalRunTime = 0;
 
     // Other processes info
 

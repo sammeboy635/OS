@@ -269,7 +269,7 @@ void quit(int code)
 
     if (Current->fn_child_active(Current) == TRUE) // Halt if there is active children
     {
-        console("process %s quit with active children. Halting...", Current->name);
+        console("quit(): process %s quit with active children. Halting...", Current->name);
         halt(1);
     }
 

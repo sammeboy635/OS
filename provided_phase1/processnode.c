@@ -60,6 +60,9 @@ proc_ptr pop_push_end(nodelist *_list)
     if (_list->head == NULL)
         return NULL;
 
+    if (_list->length == 1)
+        return _list->head->value;
+
     tmp = _list->head;
     _list->head = _list->head->next;
     _list->length--;
