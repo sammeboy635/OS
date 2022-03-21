@@ -8,11 +8,11 @@
 /*
  * Maximum line length. Used by terminal read and write.
  */
-#define MAXLINE         80
+#define MAXLINE 80
 
-#define MAXMBOX         2000 /* 500 */
-#define MAXSLOTS        2500 /* 5000 */
-#define MAX_MESSAGE     150  /* largest possible message in a single slot */
+#define MAXMBOX 2000    /* 500 */
+#define MAXSLOTS 2500   /* 5000 */
+#define MAX_MESSAGE 150 /* largest possible message in a single slot */
 
 /* returns id of mailbox, or -1 if no more mailboxes, -2 if invalid args */
 extern int MboxCreate(int slots, int slot_size);
@@ -48,7 +48,7 @@ typedef struct sysargs
         void *arg5;
 } sysargs;
 
-//extern void             (*sys_vec[MAXSYSCALLS])(sysargs *args);
-extern void             (*sys_vec[])(sysargs *args);
+// extern void             (*sys_vec[MAXSYSCALLS])(sysargs *args);
+extern void (*sys_vec[])(sysargs *args);
 
 #endif
