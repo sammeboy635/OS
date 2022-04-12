@@ -1,47 +1,33 @@
 #ifndef _user_H
 #define _user_H
 
-typedef struct procSlot *procPtr;
-typedef struct semaphore *semaphore;
+typedef struct proc *procPtr;
 
-int proc_init(procPtr proc);
+int proc_clear(procPtr proc);
 void proc_set(procPtr proc, procPtr parent, int PID, char *name, int (*func)(char *), char *arg, int stack_size, int priority);
+procPtr proc_wait(procPtr proc, int *status);
 
-struct procSlot
+#define READY 196
+#define JOIN 197
+#define WAIT 198
+#define ZAPPED 199
+#define END_WAITING 200
+
+struct proc
 {
     int pid;
-    int parentPid;
-    int (*start_func)(char *);
+    int (*sFunc)(char *);
     char *name;
     int status;
     char *arg;
     int stack_size;
     int priority;
-    procPtr nextChild;
-    procPtr nextSib;
+    int mbox;
+    int qcode;
+
     procPtr parent;
-    procPtr nextProc;
-    int privateMbox;
-    int termCode;
+    procPtr child;
+    procPtr next;
 };
-
-struct sem
-{
-    int value;
-};
-
-struct semaphore
-{
-    int value;
-    int semID;
-    int mboxID;
-    procPtr nextBlockedProc;
-};
-
-#define READY 0
-#define JOIN_BLOCKED 1
-#define ZOMBIE 2
-#define WAIT_BLOCKED 11
-#define ZAP_BLOCKED 12
 
 #endif

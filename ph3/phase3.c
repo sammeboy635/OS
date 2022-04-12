@@ -8,235 +8,392 @@
 #include <stdio.h>
 #include <string.h>
 #include "user.h"
+#include "provided_prototypes.h"
 #define DEBUG3 0
 extern int start3(char *);
 static void nullsys3(sysargs *args);
 int spawn_launch();
-int setToUserMode();
-int inKernelMode(char *procName);
-int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority);
-int wait_real(int *status);
-void terminate_real(int exit_code);
-void spawn();
+int set_to_user_mode();
+int kernel_check(char *procName);
 
-int PID;
+void sysspawn(sysargs *args);
+void syswait(sysargs *args);
+void systerminate(sysargs *args);
+void sysgettimeofday(sysargs *args);
+void syscputime(sysargs *args);
+void sysgetpid(sysargs *args);
+
 int mbox;
-int debugflag3 = 0;
 
-// table of semaphores
-struct semaphore semTable[MAXSEMS];
-struct procSlot procTable[MAXPROC];
+struct proc ProcList[MAXPROC];
 
 int start2(char *arg)
 {
     int pid = 0;
     int status;
-    /*
-     * Check kernel mode here.
-     */
-    // Need sys_vec
-    /*
-     * Data structure initialization as needed...
-     */
-    for (int i = 0; i < MAXPROC; i++)
-    {
-        proc_init(&procTable[i]);
-    }
-    mbox = MboxCreate(0, 5);
-    mbox = MboxCreate(0, 5);
-
-    PID = getpid();
+    mbox = MboxCreate(1, 0);
+    int senderbox = MboxCreate(1, 0);
 
     for (int i = 0; i < MAXSYSCALLS; i++)
         sys_vec[i] = nullsys3;
 
-    sys_vec[SYS_SPAWN] = spawn;
-    // sys_vec[SYS_WAIT] = wait_real;
-    // sys_vec[SYS_TERMINATE] = terminate_real;
-    /*
-     * Create first user-level process and wait for it to finish.
-     * These are lower-case because they are not system calls;
-     * system calls cannot be invoked from kernel mode.
-     * Assumes kernel-mode versions of the system calls
-     * with lower-case names.  I.e., Spawn is the user-mode function
-     * called by the test cases; spawn is the kernel-mode function that
-     * is called by the syscall_handler; spawn_real is the function that
-     * contains the implementation and is called by spawn.
-     *
-     * Spawn() is in libuser.c.  It invokes usyscall()
-     * The system call handler calls a function named spawn() -- note lower
-     * case -- that extracts the arguments from the sysargs pointer, and
-     * checks them for possible errors.  This function then calls spawn_real().
-     *
-     * Here, we only call spawn_real(), since we are already in kernel mode.
-     *
-     * spawn_real() will create the process by using a call to fork1 to
-     * create a process executing the code in spawn_launch().  spawn_real()
-     * and spawn_launch() then coordinate the completion of the phase 3
-     * process table entries needed for the new process.  spawn_real() will
-     * return to the original caller of Spawn, while spawn_launch() will
-     * begin executing the function passed to Spawn. spawn_launch() will
-     * need to switch to user-mode before allowing user code to execute.
-     * spawn_real() will return to spawn(), which will put the return
-     * values back into the sysargs pointer, switch to user-mode, and
-     * return to the user code that called Spawn.
-     */
+    sys_vec[SYS_SPAWN] = sysspawn;
+    sys_vec[SYS_WAIT] = syswait;
+    sys_vec[SYS_TERMINATE] = systerminate;
+    sys_vec[SYS_GETTIMEOFDAY] = sysgettimeofday;
+    sys_vec[SYS_CPUTIME] = syscputime;
+    sys_vec[SYS_GETPID] = sysgetpid;
+
+    for (int i = 0; i < MAXPROC; i++)
+    {
+        proc_clear(&ProcList[i]);
+    }
+
+    proc_set(&ProcList[1], NULL, 1, "sentinel", NULL, NULL, 0, 6);
+    proc_set(&ProcList[2], NULL, 2, "start1", NULL, NULL, 0, 1);
+    ProcList[2].status = JOIN;
+
+    proc_set(&ProcList[getpid()], &ProcList[2], getpid(), "start2", start2, arg, USLOSS_MIN_STACK, 1);
+
     pid = spawn_real("start3", start3, NULL, 4 * USLOSS_MIN_STACK, 3);
     pid = wait_real(&status);
-    setToUserMode();
-    return 0;
-} /* start2 */
-  /* start2 */
 
-void spawn(sysargs *args)
+    set_to_user_mode();
+
+    dbg_print("Start Ending");
+    Terminate(1);
+
+    return 0;
+}
+
+void sysspawn(sysargs *args)
 {
-    if (DEBUG3 && debugflag3)
-        USLOSS_Console("spawn(): at beginning\n");
-    /* extract args and check for errors */
-    // get address of function to spawn
-    int (*func)(char *) = args->arg1;
-    // get function name
     char *name = args->arg5;
-    // get argument passed to spawned function
+    int (*func)(char *) = args->arg1;
     char *arg = args->arg2;
-    // get stack size
     int stack_size = (int)args->arg3;
-    // get priority
     int priority = (int)args->arg4;
 
-    // return if name is an illegal value
-    if (name == NULL)
-    {
-        if (DEBUG3 && debugflag3)
-            console("spawn(): illegal value for name! Returning\n");
-        args->arg1 = (void *)-1;
-        args->arg4 = (void *)-1;
-        return;
-    }
-    // return if priority is an illegal value
-    if (priority < 1 || priority > 5)
-    {
-        if (DEBUG3 && debugflag3)
-            console("spawn(): illegal value for priority! Returning\n");
-        args->arg1 = (void *)-1;
-        args->arg4 = (void *)-1;
-        return;
-    }
-    // return if stack size is and illegal value
-    if (stack_size < USLOSS_MIN_STACK)
-    {
-        if (DEBUG3 && debugflag3)
-            console("spawn(): illegal value for stack size! Returning\n");
-        args->arg1 = (void *)-1;
-        args->arg4 = (void *)-1;
-        return;
-    }
-    // return if name is an illegal value
-    if (strlen(name) > MAXNAME)
-    {
-        if (DEBUG3 && debugflag3)
-            console("spawn(): illegal value for name! Returning\n");
-        args->arg1 = (void *)-1;
-        args->arg4 = (void *)-1;
-        return;
-    }
-    // return if arg is an illegal value
-    if (arg != NULL && strlen(arg) > MAXARG)
-    {
-        if (DEBUG3 && debugflag3)
-            console("spawn(): illegal value for arg! Returning\n");
-        args->arg1 = (void *)-1;
-        args->arg4 = (void *)-1;
-        return;
+    int pid = spawn_real(name, func, arg, stack_size, priority);
 
-        if (DEBUG3 && debugflag3)
-            console("spawn(): At end\n");
-    }
-    // arguments are legal, give them to spawnReal, pass arg1 for pid
-    int kpid = spawn_real(name, func, arg, stack_size, priority);
+    args->arg1 = pid;
 
-    // check to make sure spawnReal worked
-    if (kpid == -1)
-    {
-        if (DEBUG3 && debugflag3)
-            console("spawn(): fork1 failed to create process, returning -1\n");
-        args->arg4 = (void *)-1;
-    }
-
-    // assign pid to proper spot of arg struct
-    args->arg1 = kpid;
-    // no errors at this point, arg4 can be set to 0
-    args->arg4 = 0;
-    // will return to user level function, set to user mode!
-    setToUserMode();
+    set_to_user_mode();
     return;
 }
 int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority)
 {
-    int kpid = fork1(name, spawn_launch, arg, stack_size, priority);
-    proc_set(&procTable[PID + 1], &procTable[PID], PID, name, func, arg, stack_size, priority);
-    MboxSend(mbox, "", 0);
+    int pid = fork1(name, spawn_launch, arg, stack_size, priority);
 
-    return kpid;
+    MboxSend(mbox, NULL, 0);
+    proc_set(&ProcList[pid], &ProcList[getpid()], pid, name, func, arg, stack_size, priority);
+
+    MboxReceive(mbox, NULL, 0);
+    MboxCondSend(ProcList[pid].mbox, NULL, 0);
+
+    return pid;
 }
 
 int spawn_launch()
 {
+    dbg_print("sending from spawn_launch");
+    MboxSend(mbox, NULL, 0);
+    int pid = getpid();
+    if (ProcList[pid].pid != pid)
+    {
+        ProcList[pid].mbox = MboxCreate(0, sizeof(int) * 2);
+        dbg_print("receiving from spawn_launch");
+        MboxReceive(mbox, NULL, 0);
+        dbg_print("private receiving from spawn_launch");
+        MboxReceive(ProcList[pid].mbox, 0, 0);
+    }
+    else
+    {
+        dbg_print("receiving from spawn_launch");
+        MboxReceive(mbox, NULL, 0);
+    }
 
-    MboxReceive(mbox, NULL, 0);
-    procPtr p = &procTable[getpid()];
-    setToUserMode();
+    if (is_zapped())
+    {
+        dbg_print("receiving from spawn_launch");
+        set_to_user_mode();
+        Terminate(1);
+    }
+    else
+    {
+        set_to_user_mode();
+        int result = ProcList[pid].sFunc(ProcList[pid].arg);
+        Terminate(result);
+    }
+}
 
-    p->start_func(p->arg);
-    return 0;
+void syswait(sysargs *args)
+{
+
+    MboxSend(mbox, NULL, 0);
+    if (ProcList[getpid()].child == NULL) // Child Null
+    {
+        dbg_print("Called Wait with no Child");
+        MboxReceive(mbox, NULL, 0);
+    }
+    else
+    {
+        dbg_print("Waiting for child");
+        MboxReceive(mbox, NULL, 0);
+    }
+
+    int status;
+    args->arg1 = (void *)wait_real(&status);
+    args->arg2 = (void *)status;
+    dbg_print("Child Term");
 }
 
 int wait_real(int *status)
 {
-    procPtr p = &procTable[getpid()];
-    MboxReceive(p->nextChild->privateMbox, "", 0);
-    setToUserMode();
-    return 0;
+    dbg_print("in waiting state wait_real");
+    dbg_print("Sending from wait_real");
+    MboxSend(mbox, NULL, 0);
+
+    int results[] = {0, 0};
+    int pid = getpid();
+    if (ProcList[pid].child != NULL)
+    {
+        procPtr cur = ProcList[pid].child;
+        while (cur != NULL)
+        {
+            if (cur->status == END_WAITING)
+            {
+                dbg_print("reveive from wait_real");
+                MboxReceive(mbox, NULL, 0);
+
+                dbg_print("reveive from wait_real");
+                MboxReceive(cur->mbox, results, sizeof(int) * 2);
+
+                *status = results[1];
+                dbg_print("End_waiting returning");
+                int stats;
+                join(&stats);
+
+                return results[0];
+            }
+            cur = cur->next;
+        }
+    }
+    dbg_print("receive from wait_real");
+    MboxReceive(mbox, NULL, 0);
+
+    ProcList[pid].status = WAIT;
+
+    dbg_print("receive from wait_real");
+    MboxReceive(ProcList[pid].mbox, results, sizeof(int) * 2);
+
+    dbg_print("send from wait_real");
+    MboxSend(mbox, NULL, 0);
+
+    ProcList[pid].status = READY;
+
+    dbg_print("receive from wait_real");
+    MboxReceive(mbox, NULL, 0);
+
+    *status = results[1];
+
+    return results[0];
+}
+void systerminate(sysargs *args)
+{
+    dbg_print("Sending from terminate");
+    MboxSend(mbox, NULL, 0);
+
+    dbg_print("Receiving from terminate");
+    MboxReceive(mbox, NULL, 0);
+
+    int qcode = (int)args->arg1;
+    int pid = getpid();
+
+    dbg_print("Sending from terminate");
+    MboxSend(mbox, NULL, 0);
+
+    if (ProcList[pid].child == NULL) // No Child
+    {
+        if (ProcList[pid].parent->status == ZAPPED)
+        {
+            dbg_print("Zapped while quiting!");
+            proc_clear(&ProcList[pid]);
+
+            dbg_print("receiving from terminate");
+            MboxReceive(mbox, NULL, 0);
+            quit(1);
+        }
+        else if (ProcList[pid].parent->status == WAIT) // Parent is wait blocked
+        {
+            dbg_print("Parent was waiting");
+            int message[] = {pid, qcode}; // build message
+
+            dbg_print("receiving from terminate");
+            MboxReceive(mbox, NULL, 0);
+
+            dbg_print("sending from terminate");
+            MboxSend(ProcList[ProcList[pid].parent->pid].mbox, message, sizeof(message));
+        }
+        else if (ProcList[pid].parent->status == READY)
+        {
+            ProcList[pid].status = END_WAITING; // Put current proc into waiting mode
+            int message[] = {pid, qcode};
+
+            dbg_print("receiving from terminate");
+            MboxReceive(mbox, NULL, 0);
+
+            dbg_print("private sending from terminate");
+            MboxSend(ProcList[pid].mbox, message, sizeof(message));
+        }
+    }
+    else // Everything else
+    {
+        dbg_print("receiving from terminate");
+        MboxReceive(mbox, NULL, 0);
+
+        dbg_print("sending from terminate");
+        MboxSend(mbox, NULL, 0);
+
+        procPtr cur = ProcList[pid % MAXPROC].child;
+
+        dbg_print("receiving from terminate");
+        MboxReceive(mbox, NULL, 0);
+
+        procPtr next = NULL;
+        while (cur != NULL)
+        {
+            dbg_print("Sending from terminate");
+            MboxSend(mbox, NULL, 0);
+            if (cur->next == NULL)
+                next = NULL;
+            else
+                next = cur->next;
+
+            if (cur->status == END_WAITING)
+            {
+                int result[] = {-1, -1};
+                // Waking up waiting process
+                dbg_print("receiving from terminate");
+                MboxReceive(mbox, NULL, 0);
+                dbg_print("private from terminate");
+                MboxReceive(cur->mbox, result, sizeof(int) * 2);
+            }
+            else // ZAPPING CHILD
+            {
+                ProcList[pid].status = ZAPPED;
+
+                dbg_print("receiving from terminate");
+                MboxReceive(mbox, NULL, 0);
+
+                zap(cur->pid);
+                ProcList[pid].status = READY;
+            }
+            cur = next;
+        }
+
+        dbg_print("sending from terminate");
+        MboxSend(mbox, NULL, 0);
+
+        if (ProcList[pid].pid == 3) // SPECIAL CASE FOR START2
+        {
+            dbg_print("receiving from terminate");
+            MboxReceive(mbox, NULL, 0);
+            quit(qcode);
+        }
+        else if (ProcList[pid].parent->status == WAIT) // PARENT IN WAIT TODO SEGFAULT HERE
+        {
+            int message[] = {pid, qcode};
+
+            dbg_print("receiving from terminate");
+            MboxReceive(mbox, NULL, 0);
+
+            dbg_print("private sending results from terminate");
+            MboxSend(ProcList[ProcList[pid].parent->pid].mbox, message, sizeof(message));
+        }
+        else if (ProcList[pid].parent->status == READY) // If the parent hasn't called wait, then put process into wait
+        {
+
+            ProcList[pid].status = END_WAITING; // Set to waiting status
+            int message[] = {pid, qcode};
+
+            dbg_print("receiving from terminate");
+            MboxReceive(mbox, NULL, 0);
+
+            dbg_print("private sending from terminate");
+            MboxSend(ProcList[pid].mbox, message, sizeof(message));
+        }
+
+        dbg_print("cond receiving from terminate");
+        MboxCondReceive(mbox, NULL, 0);
+    }
+
+    dbg_print("Sending from terminate");
+    MboxSend(mbox, NULL, 0);
+
+    if (ProcList[getpid()].next == NULL)
+        ProcList[getpid()].parent->child = NULL;
+    else
+        ProcList[getpid()].parent->child = ProcList[getpid()].next;
+
+    proc_clear(&ProcList[getpid()]);
+
+    dbg_print("receiving from terminate");
+    MboxReceive(mbox, NULL, 0);
+
+    quit(qcode);
 }
 
-void terminate_real(int exit_code)
-{
-    procPtr p = &procTable[getpid()];
-    p->termCode = exit_code;
-    MboxReceive(p->privateMbox, NULL, 0);
-    // Terminate the rest of the processes somehow
-}
-
-void syscall_handler(int dev, void *unit)
-{
-    sysargs *sys_ptr;
-    sys_ptr = (sysargs *)unit;
-    /* Sanity check : if the interrupt is not SYSCALL_INT, halt(1) */
-    // more checking
-    /* Now it is time to call the appropriate system call handler*/
-    sys_vec[sys_ptr->number](sys_ptr);
-}
-int setToUserMode()
+int set_to_user_mode()
 {
     psr_set(psr_get() & ~PSR_CURRENT_MODE);
 }
 
-int inKernelMode(char *procName)
+void sysgettimeofday(sysargs *args)
+{
+    args->arg1 = (void *)clock();
+    set_to_user_mode();
+}
+int gettimeofday_real(int *time)
+{
+    time = clock();
+    return 1;
+}
+void syscputime(sysargs *args)
+{
+    // args->arg1 = readtime();
+    args->arg1 = 5;
+    // readtime();
+}
+void sysgetpid(sysargs *args)
+{
+    args->arg1 = getpid();
+    set_to_user_mode();
+}
+int kernel_check(char *procName)
 {
     if ((PSR_CURRENT_MODE & psr_get()) == 0)
     {
-        console("Kernel Error: Not in kernel mode, may not run %s()\n", procName);
+        console("Not in Kernal Mode\n");
         halt(1);
         return 0;
     }
-    else
-    {
-        return 1;
-    }
+    return 1;
 }
+
 static void nullsys3(sysargs *args_ptr)
 {
-    printf("nullsys3(): Invalid syscall %d\n", args_ptr->number);
-    printf("nullsys3(): process %d terminating\n", PID);
-    terminate_real(1);
-} /* nullsys3 */
+    console("nullsys3(): Invalid syscall %d : Process %d terminating\n", args_ptr->number, getpid());
+    systerminate(1);
+}
+
+void dbg_print(char *_str, ...)
+{
+    if (DEBUG3 == 1) // TEACHER ASK ABOUT VARS NOT PRINTING RIGHT
+    {
+        va_list argptr;
+        va_start(argptr, _str);
+        console(_str, argptr);
+        va_end(argptr);
+    }
+}

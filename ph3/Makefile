@@ -18,8 +18,7 @@ TESTS= test00 test01 test02 test03 test04 test05 test06 test07 test08 \
 
 # Use one of the following LIBS lines, depending on whose phase1/2 you are using
 # lxu’s phase2 and phase1
-LIBS = -lmjdphase1 -lmjdphase2 -lusloss -lmjdphase1\
-       -lmjdphase2 -lphase3 
+LIBS = -lusloss -lmjdphase1 -lmjdphase2 -lphase3 
 # Your phase1 and your phase2
 #LIBS = -lphase2 -lphase1 -lusloss -luser 
 
