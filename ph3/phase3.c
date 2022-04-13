@@ -362,8 +362,7 @@ int gettimeofday_real(int *time)
 void syscputime(sysargs *args)
 {
     // args->arg1 = readtime();
-    args->arg1 = 5;
-    // readtime();
+    args->arg1 = readtime();
 }
 void sysgetpid(sysargs *args)
 {

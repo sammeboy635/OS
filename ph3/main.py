@@ -7,7 +7,7 @@ import os
 from sys import stderr
 
 # 10 11 12 19 are differn't because of time
-CASES = "00 01 02 03 10 11 12 13 14 15 17 18 19 21 22 23 24".split(" ")
+CASES = "00 01 02 03 10 11 12 13 14 15 17 18 19 21 22 23 24 25".split(" ")
 EXFILEJSON = "expected.json"
 
 
